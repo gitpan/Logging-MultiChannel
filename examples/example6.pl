@@ -6,12 +6,11 @@
 # $ more example6.log 
 # 1406668068,"INF","This is an info message for myLogFile1.log","one","two","three","Tue Jul 29 17:07:48 2014"
 use strict;
-use Test::More qw(no_plan);
 use Logging::MultiChannel qw(Log);
 my $filename='example6.log';
 open (my $fh,">$filename") or die("Unable to open $filename");
 
-Logging::MultiChannel::startLoggingOnHandle($fh,\&eventLogger);
+Logging::MultiChannel::startLoggingOnHandle('My very own file',$fh,\&eventLogger);
 
 Log('INF','This is an info message for myLogFile1.log','one','two','three');
 

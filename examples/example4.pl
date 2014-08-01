@@ -4,12 +4,11 @@
 # disabled.
 use strict;
 use warnings;
-use Test::More qw(no_plan);
 use Logging::MultiChannel qw(Log);
 my $filename='example4.log';
 open (my $fh,">$filename") or die("Unable to open $filename");
 
-Logging::MultiChannel::startLoggingOnHandle($fh);
+Logging::MultiChannel::startLoggingOnHandle('My very own filehandle',$fh);
 
 Log('INF','This is an info message for myLogFile1.log');
 

@@ -1,6 +1,6 @@
 package Logging::MultiChannel;
 use vars qw($VERSION);
-$VERSION = '1.0.0';
+$VERSION = '1.0.1';
 # -------------------- Notice ---------------------
 # Copyright 2014 Paul LaPointe
 # www.PaullaPointe.com/Logging-MultiChannel
@@ -71,6 +71,14 @@ and the Lesser GNU General Public License 3.0 (LGPL).
 
 Please report any bugs or feature requests to bugs@paullapointe.org
 
+JUL 31, 2014 - Changed the mapChannelToLog to be internal to avoid confusion in it's use.
+             - Added a name to the startLoggingOnHandle fn to provide a name for these logs to work with
+             - Added simple client-server example 
+
+=head2 METHODS
+
+Please visit <http://paullapointe.org/MultiChannel> for complete documentation, examples, and more.
+
 =head2 METHODS
 
 =head3 Log ( channel, message, additional args... )
@@ -91,15 +99,21 @@ oldDir       - Move old log files to this fully qualified directory when overwri
 
 printHandler - An optional special print handler for this file 
 
-=head3 startLoggingOnHandle ( filename, printHandler )
+=head3 startLoggingOnHandle ( name, fileHandle, printHandler )
 
-filename     - the fully qualified filename for the log
+name     - Any arbitrary name for this log.
+
+filehandle - The filehandle to log with.
 
 printHandler - An optional special print handler for this file 
 
 =head3 stopLogging ( Log filename )
 
 This will stop logging to the given log file.
+
+=head3 closeLogs();
+
+This will stop logging to ALL files (including any custom filehandles).
 
 =head3 mapChannel ( Channel, Log filename1, Log filename2, ... )
 
@@ -171,79 +185,7 @@ Returns a list with a count of all messages logged to each channel.
  Logging::MultiChannel::closeLogs(); # This will close ALL log files that are open
  exit;
  
-=head4 Example 3: Copying a channel to two log files 
-
- use Logging::MultiChannel qw(Log);
- Logging::MultiChannel::startLogging('myLogFile1.log');
- Logging::MultiChannel::startLogging('myLogFile2.log');
-
- Logging::MultiChannel::mapChannel('INF','myLogFile1.log'); # Put INF messages in myLogFile1.log
- Logging::MultiChannel::mapChannel('ERR','myLogFile1.log'); # Put ERR messages in myLogFile1.log
- Logging::MultiChannel::mapChannel('ERR','myLogFile2.log'); # ALSO put ERR messages in myLogFile2.log
-
- Log('INF','This is an info message for myLogFile1.log');
- Log('ERR','This is an Error message for myLogFile1.log & myLogFile2.log');
-
- Logging::MultiChannel::closeLogs(); # This will close ALL log files that are open
- exit;
-
-=head4 Example 4: Providing your own filehandle
- #  Note if you do this, the log cycle functions are 
- # disabled.
- use strict;
- use Logging::MultiChannel qw(Log);
- my $filename='example4.log';
- open (my $fh,">$filename") or die("Unable to open $filename");
-
- Logging::MultiChannel::startLoggingOnHandle($fh);
-
- Log('INF','This is an info message for myLogFile1.log');
-
- Logging::MultiChannel::closeLogs(); # This will close ALL log files that are open
- exit;  
- 
-=head4 Example 5: Providing your own filehandle and using a custom print handler
-
-Example 4 can be modified to specify a special print handler:
-
-  Logging::MultiChannel::startLoggingOnHandle($fh,\&eventLogger);
-
-The call back function will be passed these args:
-
- # 0 - Epoch Time
- # 1 - Local Time as a string
- # 2 - Real Filehandle
- # 3 - The Log object
- # 4 - source module
- # 5 - source filename
- # 6 - source line #
- # 7 - desired color
- # 8 - channel name
- # 9 - message
- # 10 - extra field 1
- # 11 - extra field 2
- # 12 - extra field 3
- # etc...
-
-Here's an example of a call back function:
-
- sub eventLogger {
-    my $fh=$_[2];
-    my $fhObject=$_[3];
-      
-    # Print the line content
-    print $fh "$_[0],";
-    for (my $i=8;$i<13;$i++) {
-	print $fh "\"$_[$i]\",";
-    }
-    print $fh "\"$_[1]\"\n";        
- }
-
-=head4 Example 6: Using log stats to see how many messages were printed on each channel:
-
- # Print out # of messages printed on each channel
- Log('INF','Log Stats:');
- foreach my $line (Logging::MultiChannel::logStats()) { Log('INF',$line); }
+=head4 More Examples are available in the distribution and at http://paullapointe.org/MultiChannel
 
 =cut
 
@@ -254,8 +196,11 @@ require Exporter;
 use UNIVERSAL;
 use IO::Handle;
 
+our @months = qw( Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec );
+our @weekdays = qw( Sun Mon Tues Wed Thrus Fri Sat );
+
 our @ISA = 'Exporter';
-our @EXPORT_OK = qw(Log startLogging startLoggingOnHandle stopLogging mapChannel mapChannelToLog unmapChannel enableChannel disableChannel enableChannelForModule disableChannelForModule assignColorCode enableColor disableColor logStats);
+our @EXPORT_OK = qw(Log startLogging startLoggingOnHandle stopLogging mapChannel unmapChannel enableChannel disableChannel enableChannelForModule disableChannelForModule assignColorCode enableColor disableColor logStats);
 
 my $defaultLog; # This tracks the last log file openned, which will be the default for unmapped channels
 
@@ -288,6 +233,8 @@ sub startLogging {
     $log->{limit}       =shift; # An optional limit on the number of lines that can be written before cycling this log
     $log->{oldDir}      =shift; # Move old log files to this directory when overwritting
     $log->{printHandler}=shift; # An optional special print handler for this file 
+
+    # If not provided, the printHandler will default to the std fn
     unless ($log->{printHandler}) { $log->{printHandler}=\&logPrint; }
   
     # Check for an old copy of the log, and move it out of the way if desired
@@ -304,12 +251,13 @@ sub startLogging {
 }
 # This will start a new log file and 
 # assign a set of channels to the log
-# 0 - filename to open
-# 1 - A limit for the number of lines written to this file, after which it will cycle
-# 2- A Code reference to a special print handler for this file
+# 0 - Any arbitray name for this log, so we can work with it.
+# 1 - The already openned filehandle
+# 2 - A Code reference to a special print handler for this file
 #
 sub startLoggingOnHandle {
     my $log;
+    $log->{filename}    =shift; # In this case, just any name - it can be any string
     $log->{fh}          =shift; # Obviously, the fully qualified filename for the log       
     $log->{printHandler}=shift; # An optional special print handler for this file 
 
@@ -317,6 +265,7 @@ sub startLoggingOnHandle {
     $log->{limit}   =0;  # Disabled
     $log->{oldDir}  =''; # Disabled
 
+    # If not provided, the printHandler will default to the std fn
     unless ($log->{printHandler}) { $log->{printHandler}=\&logPrint; }
 
     # Now initialize this log
@@ -358,7 +307,7 @@ sub mapChannel {
     enableChannel($channel);
 
     # Map the channel to each individual Log
-    foreach my $filename (@_) { &mapChannelToLog($channel,$filenameMap{$filename}); }
+    foreach my $filename (@_) { &mapChannelToLog_Internal($channel,$filenameMap{$filename}); }
 }
 
 # This will map a set of channels to a specific log file object.
@@ -369,13 +318,13 @@ sub mapChannel {
 # times with different logs.
 # 
 # Eg. 
-sub mapChannelToLog {
+sub mapChannelToLog_Internal {
     my $channelName=shift;
     my $log=shift;
-  
-    # If there is an existing list of fh for this channel
-    # add this fh to it.
-    if ($channels->{$channelName}->{logs}) {	
+ 
+    # If there is an existing list of logs for this channel
+    # add this log to it.
+    if ($channels->{$channelName}->{logs}) {
 	push @{$channels->{$channelName}->{logs}},$log;
     }
     else {
@@ -469,7 +418,7 @@ sub Log {
     unless ($channels->{$_[0]}->{logs}) { 
 	if ($defaultLog) { 
 	    # If its not, map it to the default log (last openned) and enable it.
-	    &mapChannelToLog($_[0],$defaultLog); 
+	    &mapChannelToLog_Internal($_[0],$defaultLog); 
 
 	    # Turn the channel on
 	    enableChannel($_[0]);
@@ -488,7 +437,7 @@ sub Log {
 	$channels->{$_[0]}->{count}++;
 
 	# Print the message on each of the filehandles for this channel
-	foreach my $log (@{$channels->{$_[0]}->{logs}}) {      
+	foreach my $log (@{$channels->{$_[0]}->{logs}}) { 
 	    if ($log->{printHandler}) { 
 		my $color;
 		# If this filehandle has color turned on, and this channel has a desired color, provide it
@@ -530,11 +479,10 @@ sub moveOldLog {
     # Get a timestamp, to add to the name of the old log file 
     my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime(time);
     $year += 1900;        
-    my $timestamp="$year-".$main::months[$mon]."-".$mday."_"."$hour.$min.$sec"; 
+    my $timestamp="$year-".$months[$mon]."-".$mday."_"."$hour.$min.$sec"; 
     
     # Rename the old file with the timestamp
     my $cmd="mv -f $filename $filename\.$timestamp";
-
     # If there's an old dir specified, move the file there instead
     if ($log->{oldDir}) {
 	my $shortFilename=$filename;

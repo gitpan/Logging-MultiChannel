@@ -2,10 +2,11 @@
 # Example 1:  The simplest use case:
 use strict;
 use warnings;
-use Test::More qw(no_plan);
 use Logging::MultiChannel qw(Log);
-Logging::MultiChannel::startLogging('myLogFile.log');
+
+Logging::MultiChannel::startLogging('example1.log');
+
 Log('INF','This is an info message'); # This will default to the last log openned
 
-Logging::MultiChannel::stopLogging('myLogFile.log');
+Logging::MultiChannel::stopLogging('example1.log');
 exit;

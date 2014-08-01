@@ -1,19 +1,19 @@
 #!/usr/bin/perl
-# Example 3: Two channels to two log files, with one channel duplicated in both
+# Example 5: Like example 3, Two channels to two log files, with one channel duplicated in both
+# Then do a total of messages sent to  all log channels
 use strict;
 use warnings;
-use Test::More qw(no_plan);
 use Logging::MultiChannel qw(Log);
-Logging::MultiChannel::startLogging('myLogFile1.log');
-Logging::MultiChannel::startLogging('myLogFile2.log');
+my $logfile1='example5-both.log';
+my $logfile2='example5-error.log';
+Logging::MultiChannel::startLogging($logfile1);
+Logging::MultiChannel::startLogging($logfile2);
 
-Logging::MultiChannel::mapChannel('INF','myLogFile1.log'); # Put INF messages in myLogFile1.log
-Logging::MultiChannel::mapChannel('ERR','myLogFile1.log'); # Put ERR messages in myLogFile1.log
-Logging::MultiChannel::mapChannel('ERR','myLogFile2.log'); # ALSO put ERR messages in myLogFile2.log
+Logging::MultiChannel::mapChannel('INF',$logfile1); # Put INF messages in myLogFile1.log
+Logging::MultiChannel::mapChannel('ERR',$logfile1,$logfile2); # Put ERR messages in logfile1 and logfile2
 
-Log('INF','This is an info message for myLogFile1.log');
-Log('ERR','This is an Error message for myLogFile1.log & myLogFile2.log');
-
+Log('INF',"This is an info message for $logfile1");
+Log('ERR',"This is an Error message for $logfile1 & $logfile2");
 
 # Print out # of messages printed on each channel
 Log('INF','Log Stats:');

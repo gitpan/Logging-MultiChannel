@@ -11,5 +11,7 @@ examples/example3.pl
 examples/example4.pl
 examples/example5.pl
 examples/example6.pl
+examples/example7a-logClient.pl
+examples/example7b-logServer.pl
 lib/Logging/MultiChannel.pm
 t/smokeTest.t
